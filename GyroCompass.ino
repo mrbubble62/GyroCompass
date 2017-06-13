@@ -1,3 +1,4 @@
+#include "MadgwickAHRS.h"
 #include <i2c_t3.h>
 #include <NMEA2000_CAN.h>
 #include "N2kMessages.h"
@@ -6,7 +7,7 @@
 #include "MPU9250.h"
 #include <SparkFunBME280.h>
 #include <EEPROM.h>
-
+#include "kalman.h"
 
 #define EEPROM_ADR_CONFIG 0 // eeprom address for config params
 #define P0 1005.3
@@ -42,7 +43,7 @@ const tConfig defConfig PROGMEM = {
 	5.0f,0.f,		// KpMag ,KiMag
 	0.25f			// accelCutoff
 };
-
+tN2kMsg N2kMsg;
 MPU9250 IMU(0x68, 0);
 float a12, a22, a31, a32, a33;            // rotation matrix coefficients for Euler angles and gravity components
 float ax, ay, az, gx, gy, gz, hx, hy, hz, t, mx, my, mz;
@@ -50,7 +51,7 @@ int beginStatus;
 float SelfTest[6];            // holds results of gyro and accelerometer self test
 float magBias[3] = { 0, 0, 0 }, magScale[3] = { 0, 0, 0 };
 double T, P;
-float pitch, yaw, roll, rollrate, pitchrate, yawrate;
+float pitch, yaw, roll, rollrate, pitchrate, yawrate, heading;
 
 float deltat = 0.0f, sum = 0.0f;        // integration interval for both filter schemes
 uint32_t delt_t = 0; // used to control display output rate
@@ -65,6 +66,10 @@ BME280  bmp;
 float mmax[3] = { -9999 ,-9999 ,-9999 };
 float mmin[3] = { 9999 ,9999 ,9999 };
 
+#define PROCESS_NOISE 0.00000001   // q process noise covariance
+#define SENSOR_NOISE 0.01 // r measurement noise covariance
+#define INITIAL_Q 500.0  // p estimation error covariance
+Kalman Filter(PROCESS_NOISE, SENSOR_NOISE, INITIAL_Q, 10);
 //float ax_scale = 1.0, ay_scale = 1.0, az_scale = 1.0;
 //float mx_scale = 1, my_scale = 1, mz_scale = 1;
 //float mx_bias = 0, my_bias = 0, mz_bias = 0;
@@ -109,7 +114,8 @@ void setup()
 	}
 	else
 	{
-		Serial.println(F("Setting stored calibration"));
+		Serial.println(F("Loading stored calibration\n"));
+		PrintConfig();
 		IMU.setAccelBias(config.accelBias);
 		IMU.setGyroBias(config.gyroBias);
 		IMU.setMagBias(config.magBias);
@@ -118,7 +124,6 @@ void setup()
 
 	IMU.setFilt(DLPF_BANDWIDTH_5HZ, srd);
 	//selfTest();
-	PrintConfig();
 
 	float bias[3];
 	IMU.getAccelBias(bias);
@@ -162,6 +167,7 @@ void setup()
 	NMEA2000.ExtendTransmitMessages(TransmitMessages);
 	NMEA2000.SetN2kCANMsgBufSize(5);
 	NMEA2000.Open();
+	delay(100);
 }
 
 void loop() {
@@ -240,6 +246,8 @@ void loop() {
 		P = bmp.readFloatPressure();
 		//ahrs.MargAHRSupdate(gx, gy, -gz, -ax, -ay, az, mx, my, mz, config.accelCutoff, magDataUpdate, deltat);
 		flagDataReady = false;
+		//heading = Filter.getFilteredValue(Compass_Heading(mx, my, mz));
+		heading = Compass_Heading(mx, my, mz);
 	}
 	
 	Now = micros();
@@ -278,7 +286,8 @@ void loop() {
 		lin_az = az - a33;
 
 		// print the data
-		printData();
+		//printData();
+		dumpData();
 		//PrintAHRS();
 		// delay a frame
 		//delay(50);
@@ -293,8 +302,6 @@ void loop() {
 		count = millis();
 		sumCount = 0;
 		sum = 0;
-		tN2kMsg N2kMsg;
-		
 		SetN2kAttitude(N2kMsg, SID, yaw*DEG_TO_RAD, pitch*DEG_TO_RAD, roll*DEG_TO_RAD);
 		NMEA2000.SendMsg(N2kMsg);
 		SetN2kRateOfTurn(N2kMsg, SID, gz);  // radians
@@ -310,10 +317,9 @@ void loop() {
 void SlowLoop()
 {
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-	//Serial.println("SendN2kTemperature");
 	SendN2kTemperature();
 	veryslowloop++;
-	if (veryslowloop > 9) { veryslowloop = 0; NMEA2000.SendIsoAddressClaim(); }
+	//if (veryslowloop > 9) { veryslowloop = 0; NMEA2000.SendIsoAddressClaim(); }
 }
 
 void SendN2kTemperature() {
@@ -371,7 +377,6 @@ void CalibrateAG()
 	Serial.print(" Y "); Serial.print(ga[1]);
 	Serial.print(" Z "); Serial.println(ga[2]);
 	delay(5000);
-
 }
 
 void selfTest()
@@ -393,20 +398,19 @@ void selfTest()
 
 void PrintConfig()
 {
-	ReadConfig();
-	Serial.println("Config Accel bias");
+	Serial.print("Config Accel bias\t");
 	Serial.print(config.accelBias[0]); Serial.print("\t");
 	Serial.print(config.accelBias[1]); Serial.print("\t");
 	Serial.print(config.accelBias[2]); Serial.println("\t");
-	Serial.println("Config Gyro bias");
+	Serial.print("Config Gyro bias\t");
 	Serial.print(config.gyroBias[0]); Serial.print("\t");
 	Serial.print(config.gyroBias[1]); Serial.print("\t");
 	Serial.print(config.gyroBias[2]); Serial.println("\t");
-	Serial.println("Config Mag bias");
+	Serial.print("Config Mag bias \t");
 	Serial.print(config.magBias[0]); Serial.print("\t");
 	Serial.print(config.magBias[1]); Serial.print("\t");
 	Serial.print(config.magBias[2]); Serial.println("\t");
-	Serial.println("Config Mag scale");
+	Serial.print("Config Mag scale\t");
 	Serial.print(config.magScale[0]); Serial.print("\t");
 	Serial.print(config.magScale[1]); Serial.print("\t");
 	Serial.print(config.magScale[2]); Serial.println("\t");
@@ -455,14 +459,14 @@ float BearingDegrees(float x, float y)
 	bearingDegrees = (bearingDegrees > 0.0 ? bearingDegrees : (360.0 + bearingDegrees)); // correct discontinuity
 	return bearingDegrees;
 }
-float Compass_Heading(float mx, float my, float mz)
+float Compass_Heading(double mx, double my, double mz)
 {
-	float MAG_X;
-	float MAG_Y;
-	float cos_roll;
-	float sin_roll;
-	float cos_pitch;
-	float sin_pitch;
+	double MAG_X;
+	double MAG_Y;
+	double cos_roll;
+	double sin_roll;
+	double cos_pitch;
+	double sin_pitch;
 
 	cos_roll = cos(roll);
 	sin_roll = sin(roll);
@@ -505,7 +509,7 @@ void printData() {
 		Serial.print("az\t"); Serial.println((az), 2);
 		Serial.print("mx\t"); Serial.print(mx); Serial.println(" milliGauss");
 		Serial.print("my\t"); Serial.print(my); Serial.println(" milliGauss");
-		Serial.print("mz\t"); Serial.print(mz); Serial.println(" milliGauss");
+		Serial.print("mz\t"); Serial.print(mz); Serial.println(" milliGauss");	
 		Serial.print("q0 = "); Serial.print(*(getQ()));
 		Serial.print(" qx = "); Serial.print(*(getQ() + 1));
 		Serial.print(" qy = "); Serial.print(*(getQ() + 2));
@@ -524,6 +528,8 @@ void printData() {
 	Serial.print("Pitch:\t"); Serial.println(pitch, 2);
 	Serial.print("Roll:\t"); Serial.println(roll, 2);
 	Serial.print("RateOfTurn\t"); Serial.print(gz*RAD_TO_DEG, 2); Serial.println(" deg/s");
+	Serial.print("Heading\t"); Serial.print(heading); Serial.println(" deg");
+	Serial.print("rate = "); Serial.print((float)sumCount / sum, 2); Serial.println(" Hz");
 
 	if (SerialDebug) {
 		Serial.print("rate = "); Serial.print((float)sumCount / sum, 2); Serial.println(" Hz");
@@ -570,8 +576,6 @@ void magCalLoop()
 	magcalMinMax(x, y, z); //accumulate min max 
 
 	//detect circles
-	
-	//
 	//if(completed) magCalCalc
 	//IMU.setMagBias(magBias);
 }
@@ -703,4 +707,16 @@ void printJSON()
 		+ String(",\"P\":") + P
 		+ "}";
 	Serial.println(s);
+}
+
+void dumpData() {
+
+	//Serial.print(yaw, 2); Serial.print("\t"); 
+	//Serial.print(pitch, 2); Serial.print("\t");
+	//Serial.print(roll, 2);Serial.print("\t");
+	//Serial.print(gz*RAD_TO_DEG, 2);	Serial.print("\t"); 
+	Serial.print(mx, 2); Serial.print("\t"); 
+	Serial.print(my, 2); Serial.print("\t");
+	Serial.print(mz, 2);Serial.print("\t");
+	Serial.println(heading);
 }

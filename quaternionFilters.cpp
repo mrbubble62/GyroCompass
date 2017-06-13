@@ -50,7 +50,7 @@ void MadgwickQuaternionUpdate(float ax, float ay, float az, float gx, float gy, 
 	float hx, hy, _2bx, _2bz;
 	float s1, s2, s3, s4;
 	float qDot1, qDot2, qDot3, qDot4;
-
+	static float _mx=mx, _my=my, _mz=mz;
 	// Auxiliary variables to avoid repeated arithmetic
 	float _2q1mx;
 	float _2q1my;
@@ -87,20 +87,20 @@ void MadgwickQuaternionUpdate(float ax, float ay, float az, float gx, float gy, 
 	norm = sqrtf(mx * mx + my * my + mz * mz);
 	if (norm == 0.0f) return; // handle NaN
 	norm = 1.0f / norm;
-	mx *= norm;
-	my *= norm;
-	mz *= norm;
+	_mx *= norm;
+	_my *= norm;
+	_mz *= norm;
 
 	// Reference direction of Earth's magnetic field
-	_2q1mx = 2.0f * q1 * mx;
-	_2q1my = 2.0f * q1 * my;
-	_2q1mz = 2.0f * q1 * mz;
-	_2q2mx = 2.0f * q2 * mx;
-	hx = mx * q1q1 - _2q1my * q4 + _2q1mz * q3 + mx * q2q2 + _2q2 * my * q3 +
-		_2q2 * mz * q4 - mx * q3q3 - mx * q4q4;
-	hy = _2q1mx * q4 + my * q1q1 - _2q1mz * q2 + _2q2mx * q3 - my * q2q2 + my * q3q3 + _2q3 * mz * q4 - my * q4q4;
+	_2q1mx = 2.0f * q1 * _mx;
+	_2q1my = 2.0f * q1 * _my;
+	_2q1mz = 2.0f * q1 * _mz;
+	_2q2mx = 2.0f * q2 * _mx;
+	hx = _mx * q1q1 - _2q1my * q4 + _2q1mz * q3 + _mx * q2q2 + _2q2 * _my * q3 +
+		_2q2 * _mz * q4 - _mx * q3q3 - _mx * q4q4;
+	hy = _2q1mx * q4 + _my * q1q1 - _2q1mz * q2 + _2q2mx * q3 - _my * q2q2 + _my * q3q3 + _2q3 * _mz * q4 - _my * q4q4;
 	_2bx = sqrt(hx * hx + hy * hy);
-	_2bz = -_2q1mx * q3 + _2q1my * q2 + mz * q1q1 + _2q2mx * q4 - mz * q2q2 + _2q3 * my * q4 - mz * q3q3 + mz * q4q4;
+	_2bz = -_2q1mx * q3 + _2q1my * q2 + _mz * q1q1 + _2q2mx * q4 - _mz * q2q2 + _2q3 * _my * q4 - _mz * q3q3 + _mz * q4q4;
 	_4bx = 2.0f * _2bx;
 	_4bz = 2.0f * _2bz;
 
