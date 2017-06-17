@@ -22,34 +22,16 @@
     <ClInclude Include="__vm\.GyroCompass.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="quaternionFilters.h">
+    <ClInclude Include="..\MPU9250\MPU9250.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AHRS.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\libraries\MPU9250\MPU9250.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MadgwickAHRS.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="quaternionFilters.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="AHRS.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\libraries\MPU9250\MPU9250.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MadgwickAHRS.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="LICENSE.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\MPU9250\MPU9250.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
