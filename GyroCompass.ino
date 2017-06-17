@@ -106,12 +106,10 @@ void setup()
 	else Serial.println("IMU init success!");
 	IMU.setFilt(DLPF_BANDWIDTH_5HZ, srd);
 	IMU.getMagScale(factoryMagScale);
-	PrintIMUConfig();
 	ReadConfig();
 	if (config.Magic != MAGIC) {
 		//InitializeEEPROM();
-		Serial.println(F("No stored calibration\r\n  Press 'a' to run accel/gyro cal"));
-		Serial.println(F("   Press 'm' to run mag cal"));
+		Serial.println(F("\nNo stored calibration\r\n  Press 'a' to run accel/gyro cal\n  Press 'c' to run mag cal"));
 		delay(1000);
 	}
 	else
@@ -134,7 +132,7 @@ void setup()
 	bmp.settings.pressOverSample = 1;
 	//bmp.settings.disableHumidity = true;
 	if (!bmp.begin()) {
-		Serial.println("BMP init failed!");
+		Serial.println(F("BMP init failed!"));
 		while (1);
 	}
 	else Serial.println(F("BMP init success!"));
@@ -159,7 +157,7 @@ void setup()
 	NMEA2000.SetN2kCANMsgBufSize(5);
 	NMEA2000.Open();
 	delay(100);
-	Serial.println(F("Starting\n a=Accl/Gyro cal.\n c=Start Mag cal.\n d=toggle output mag x,y,x\n h=toggle output heading.\n p=print config.\n t=Self Test.\n"));
+	Serial.println(F("Starting\n a=Accl/Gyro cal.\n c=Start Mag cal.\n d=toggle output mag x,y,x\n h=toggle output heading.\n p=print config.\n t=Self Test.\n\n"));
 }
 bool SDEBUG = false; // debug print for spreadsheet
 bool SPRINT = false; // send test output
@@ -171,7 +169,14 @@ void loop() {
 	switch (command)
 	{
 	case 'c': // start mag calibration		
-		StartMagCal();
+		if (!flagCalibrate)
+		{
+			StartMagCal();
+		}
+		else
+		{
+			Serial.println(F("Calibration already running!"));
+		}		
 		break;
 	case 'f': // finish mag calibration
 		FinishMagCal();
@@ -193,29 +198,6 @@ void loop() {
 		break;
 	case 't':
 		selfTest();
-		break;
-	case 'n':
-		if (!flagCalibrate)
-		{
-			Serial.println(F("Mag Calibration collecting magnatometer values for 60 seconds"));
-			CalibrateMagf();
-		}
-		else
-		{
-			Serial.println(F("Calibration already running!"));
-		}
-		break;
-	case 'm':
-		if (!flagCalibrate)
-		{		
-			Serial.println(F("Mag Calibration collecting magnatometer values for 60 seconds"));
-			delay(500);
-			CalibrateMag();
-		}
-		else
-		{
-			Serial.println(F("Calibration already running!"));
-		}
 		break;
 	case 'l':
 		printMag();
@@ -465,7 +447,6 @@ void printData() {
 	Serial.print("Roll:\t"); Serial.println(roll, 2);
 	Serial.print("Yaw:\t");	Serial.println(yaw, 2);
 	Serial.print("Heading\t"); Serial.print(heading); Serial.println(" deg");
-	Serial.print("Heading\t"); Serial.print(YawtoHeading(heading)); Serial.println(" deg");
 	Serial.print("RateOfTurn\t"); Serial.print(gz*RAD_TO_DEG, 2); Serial.println(" deg/s");
 
 	if (SerialDebug) {
@@ -499,7 +480,7 @@ void StartMagCal()
 {
 	flagCalibrate = true;
 	IMU.startMagCal();
-	Serial.println("Begin calibration, press 'f' to finish");
+	Serial.println(F("Begin calibration, press 'f' to finish"));
 }
 
 void magCalLoop()
@@ -594,8 +575,6 @@ void dumpData() {
 }
 
 void printHeading() {
-	//Serial.print(YawtoHeading(heading),2); 
-	//Serial.print(" ");
 	Serial.print(heading, 2);
 	Serial.println();
 }
