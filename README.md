@@ -30,7 +30,7 @@ PGN 130311 Environmental Parameters
 Connect USB Serial
 
 ### Serial Send
-"a" = Calibrate accel and gyro (keep level and still)
+"a" = Calibrate accel and gyro and save to eeprom (keep level and still)
 
 "m" = Calibrate magnatometer and save to eeprom
 	turn magnatometer through all positions for ~60 seconds
