@@ -10,7 +10,6 @@
 #define EEPROM_ADR_CONFIG 0 // eeprom address for config params
 #define P0 1005.3
 bool SerialDebug = false;
-uint8_t magDataUpdate = false;
 #define intPin 12
 #define stbyPin 14
 volatile boolean flagDataReady;
@@ -160,15 +159,24 @@ void setup()
 	NMEA2000.SetN2kCANMsgBufSize(5);
 	NMEA2000.Open();
 	delay(100);
+	Serial.println(F("Starting\n a=Accl/Gyro cal.\n c=Start Mag cal.\n d=toggle output mag x,y,x\n h=toggle output heading.\n p=print config.\n t=Self Test.\n"));
 }
-bool SDEBUG = false;
-bool SPRINT = false;
-int pointcount = 0;
+bool SDEBUG = false; // debug print for spreadsheet
+bool SPRINT = false; // send test output
+
+int pointcount = 0; // data points for mag test
+
 void loop() {
 	char command = getCommand();
 	switch (command)
 	{
-	case 'd':
+	case 'c': // start mag calibration		
+		StartMagCal();
+		break;
+	case 'f': // finish mag calibration
+		FinishMagCal();
+		break;
+	case 'h': //toggle debug
 		SDEBUG = !SDEBUG;
 		delay(100);
 		break;
@@ -179,10 +187,6 @@ void loop() {
 		PrintConfig();
 		PrintIMUConfig();
 		break;
-	//case 'c':
-	//	SerialDebug = false;
-	//	flagCalibrate = false;
-	//	break;
 	case 'a':
 		Serial.println(F("Accel Calibration Starting - hold still"));
 		CalibrateAG();
@@ -222,12 +226,17 @@ void loop() {
 	default:
 		break;
 	}
-
 	
 	if (flagDataReady) { //wait for interrupt
-		IMU.getMotion9(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
-		magDataUpdate = true;
-		ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz);
+		if (flagCalibrate)
+		{
+			magCalLoop();
+		}
+		else
+		{
+			IMU.getMotion9(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
+			ahrs.update(gx, gy, gz, ax, ay, az, mx, my, mz);
+		}
 		digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 		flagDataReady = false;
 	}
@@ -235,31 +244,37 @@ void loop() {
 	// display at 0.25s rate independent of data rates
 	delt_t = millis() - count;
 	if (delt_t > 250) { // update once per half-second independent of read rate
-		roll = ahrs.getRoll();
-		pitch = ahrs.getPitch();
-		yaw = ahrs.getYaw();
-		heading = ahrs.getYaw();
-		//heading += DECLINATION;
-		//heading = YawtoHeading(yaw);
+		Now = micros();
+		deltat = ((Now - lastUpdate) / 1000000.0f); // set integration time by time elapsed since last filter update
+		lastUpdate = Now;
+		count = millis();
 
-		if (SDEBUG) {
-			if (pointcount < 5000) {
-				printMag();
-				pointcount++;
+		if (!flagCalibrate)
+		{
+			roll = ahrs.getRoll();
+			pitch = ahrs.getPitch();
+			yaw = ahrs.getYaw();
+			heading = ahrs.getYaw();
+			//heading += DECLINATION;
+			//heading = YawtoHeading(yaw);
+			if (SDEBUG) {
+				if (pointcount < 5000) {
+					printMag();
+					pointcount++;
+				}
+				else {
+					SDEBUG = false;
+					pointcount = 0;
+				}
 			}
-			else {
-				SDEBUG = false; 
-				pointcount = 0;
-			}
+			if (SPRINT) { printHeading(); }
+			SetN2kAttitude(N2kMsg, SID, yaw*DEG_TO_RAD, pitch*DEG_TO_RAD, roll*DEG_TO_RAD);
+			NMEA2000.SendMsg(N2kMsg);
+			SetN2kRateOfTurn(N2kMsg, SID, gz);  // radians
+			NMEA2000.SendMsg(N2kMsg);
+			SID++; if (SID > 254) { SID = 1; }
 		}
-		if (SPRINT) { printHeading(); }	
-
-		SetN2kAttitude(N2kMsg, SID, yaw*DEG_TO_RAD, pitch*DEG_TO_RAD, roll*DEG_TO_RAD);
-		NMEA2000.SendMsg(N2kMsg);
-		SetN2kRateOfTurn(N2kMsg, SID, gz);  // radians
-		NMEA2000.SendMsg(N2kMsg);
 		slowloop++;
-		SID++; if (SID > 254) { SID = 1; }
 	}
 	//1 s
 	if (slowloop > 4) { slowloop = 0; SlowLoop(); }
@@ -284,6 +299,9 @@ void RemoveCal()
 
 void SlowLoop()
 {
+	if (flagCalibrate) {
+		Serial.print('.');
+	}
 	// send magnetic heading
 	SetN2kMagneticHeading(N2kMsg, SID, heading*DEG_TO_RAD, N2kDoubleNA, N2kDoubleNA);
 	NMEA2000.SendMsg(N2kMsg);
@@ -465,29 +483,6 @@ char getCommand()
 	return c;
 }
 
-
-void magcalMinMax(int mx, int my, int mz)
-{
-	if (mx > mmax[0]) { mmax[0] = mx; }
-	if (my > mmax[1]) { mmax[1] = my; }
-	if (mz > mmax[2]) { mmax[2] = mz; }
-	if (mx < mmin[0]) { mmin[0] = mx; }
-	if (my < mmin[1]) { mmin[1] = my; }
-	if (mz < mmin[2]) { mmin[2] = mz; }
-}
-
-
-void magcalMinMaxf(float mx, float my, float mz)
-{
-	if (mx > mmaxf[0]) { mmaxf[0] = mx; }
-	if (my > mmaxf[1]) { mmaxf[1] = my; }
-	if (mz > mmaxf[2]) { mmaxf[2] = mz; }
-	if (mx < mminf[0]) { mminf[0] = mx; }
-	if (my < mminf[1]) { mminf[1] = my; }
-	if (mz < mminf[2]) { mminf[2] = mz; }
-}
-
-
 // tbd mag cal circle detection
 //int magCalCircles = 3;
 //void magCalLoop()
@@ -503,205 +498,44 @@ void magcalMinMaxf(float mx, float my, float mz)
 void StartMagCal() 
 {
 	flagCalibrate = true;
-	//magCalCircles = 0;
-	float d[3];	IMU.setMagBias(d); //remove existing cal
-	magScale[0] = 1; magScale[1] = 1; magScale[2] = 1;
-	IMU.setMagScale(magScale);
+	IMU.startMagCal();
+	Serial.println("Begin calibration, press 'f' to finish");
 }
 
-void magCalCalcf()
+void magCalLoop()
 {
-	// Get hard iron correction
-	magBias[0] = (mmaxf[0] + mminf[0]) / 2;
-	magBias[1] = (mmaxf[1] + mminf[1]) / 2;
-	magBias[2] = (mmaxf[2] + mminf[2]) / 2;
-
-	// Get soft iron correction estimate
-	magScale[0] = (mmaxf[0] - mminf[0]) / 2;
-	magScale[1] = (mmaxf[1] - mminf[1]) / 2;
-	magScale[2] = (mmaxf[2] - mminf[2]) / 2;
-
-	float avg_rad = magScale[0] + magScale[1] + magScale[2];
-	avg_rad /= 3.0;
-	// center of points
-	mxa = avg_rad / magScale[0];
-	mya = avg_rad / magScale[1];
-	mza = avg_rad / magScale[2];
+	IMU.updateMagCal();
 }
 
-
-void magCalCalc()
+void FinishMagCal()
 {
-	// Get hard iron correction
-	magBias[0] = (mmax[0] + mmin[0]) / 2;
-	magBias[1] = (mmax[1] + mmin[1]) / 2;
-	magBias[2] = (mmax[2] + mmin[2]) / 2;
-
-	// Get soft iron correction estimate
-	magScale[0] = (mmax[0] - mmin[0]) / 2;
-	magScale[1] = (mmax[1] - mmin[1]) / 2;
-	magScale[2] = (mmax[2] - mmin[2]) / 2;
-
-	float avg_rad = magScale[0] + magScale[1] + magScale[2];
-	avg_rad /= 3.0;
-	// center of points
-	mxa = avg_rad / magScale[0];
-	mya = avg_rad / magScale[1];
-	mza = avg_rad / magScale[2];
-}
-
-// using uT
-void CalibrateMagf()
-{
-	//reset bias to zero
-	StartMagCal();
-	float x, y, z;
-	int i = 0;
-	//int16_t x, y, z;
-	int samples = 500;
-	while (i < samples)
-	{
-		if (flagDataReady) {
-			IMU.getMag(&x, &y, &z);
-			magcalMinMaxf(x, y, z);
-			delay(20);
-			digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-			flagDataReady = false;
-			i++;
-			Serial.println(i);
-		}
-	}
-	Serial.println("Mag min max");
-	Serial.print("\tX "); Serial.print(mminf[0]); Serial.print("\t"); Serial.println(mmaxf[0]);
-	Serial.print("\tY "); Serial.print(mminf[1]); Serial.print("\t"); Serial.println(mmaxf[1]);
-	Serial.print("\tZ "); Serial.print(mminf[2]); Serial.print("\t"); Serial.println(mmaxf[2]);
-
-	magCalCalcf();
-	
-	IMU.getMag(&x, &y, &z);
-	Serial.println("Mag unscaled");
-	Serial.print("X "); Serial.print(x,3);
-	Serial.print("\tY "); Serial.print(y,3);
-	Serial.print("\tZ "); Serial.println(z,3);
-	
-	magScale[0] = mxa; magScale[1] = mya; magScale[2] = mza;
-	IMU.setMagScale(magScale);
-
-	IMU.getMag(&x, &y, &z);
-	Serial.println("Mag scaled uT");
-	Serial.print("X "); Serial.print(x,3);
-	Serial.print("\tY "); Serial.print(y,3);
-	Serial.print("\tZ "); Serial.println(z,3);
-
-
-	IMU.setMagBias(magBias);
-	IMU.getMag(&x, &y, &z);
-	Serial.println("Mag biased uT");
-	Serial.print("X "); Serial.print(x,3);
-	Serial.print("\tY "); Serial.print(y,3);
-	Serial.print("\tZ "); Serial.println(z,3);
-
+	Serial.println("\nCal complete");
+	IMU.stopMagCal();
+	Serial.print("Computed new values from: ");
+	Serial.print(IMU.getCalCount());
+	Serial.println(" samples");
+	// read new values
+	IMU.getMagBias(magBias);
+	IMU.getMagScale(magScale);
 	//update config
-	for (uint8_t ii = 0; ii < 3; ii++) {
-		config.magBias[ii] =magBias[ii];
-		config.magScale[ii] =magScale[ii];
+	for (uint8_t i = 0; i < 3; i++) {
+		config.magBias[i] = magBias[i];
+		config.magScale[i] = magScale[i];
 	}
-
-	Serial.println("\nBias");
-	Serial.print("X "); Serial.print(magBias[0]); Serial.print(" ("); Serial.print(config.magBias[0]); Serial.print(")");
-	Serial.print("\tY "); Serial.print(magBias[1]); Serial.print(" ("); Serial.print(config.magBias[1]); Serial.print(")");
-	Serial.print("\tZ "); Serial.println(magBias[2]); Serial.print(" ("); Serial.print(config.magBias[2]); Serial.print(")");
-	Serial.println("\nScale");
-	Serial.print("X "); Serial.print(magScale[0]); Serial.print(" ("); Serial.print(config.magScale[0]); Serial.print(")");
-	Serial.print("\tY "); Serial.print(magScale[1]); Serial.print(" ("); Serial.print(config.magScale[1]); Serial.print(")");
-	Serial.print("\tZ "); Serial.println(magScale[2]); Serial.print(" ("); Serial.print(config.magScale[2]); Serial.print(")");
-	Serial.println("\nCenter of points");
-	Serial.print("X "); Serial.print(mxa); 
-	Serial.print("\tY "); Serial.print(mya);
-	Serial.print("\tZ "); Serial.println(mza);
+	IMU.getMinMax(mmin, mmax);
+	Serial.println("\nMag min max");
+	Serial.print("\tX "); Serial.print(mmin[0]); Serial.print("\t"); Serial.println(mmax[0]);
+	Serial.print("\tY "); Serial.print(mmin[1]); Serial.print("\t"); Serial.println(mmax[1]);
+	Serial.print("\tZ "); Serial.print(mmin[2]); Serial.print("\t"); Serial.println(mmax[2]);
+	Serial.println();
+	PrintConfig();
+	PrintIMUConfig();
 	Serial.println("\nWriting EEPROM");
-	UpdateConfig(); //save to eeprom
-	Serial.println("Done");
+	UpdateConfig();
 	flagCalibrate = false;
 }
 
 
-// using counts
-void CalibrateMag()
-{
-	//reset bias to zero
-	StartMagCal();
-	int i = 0;
-	int16_t x, y, z;
-	int samples = 500;
-	while (i < samples)
-	{
-		if (flagDataReady) {
-			IMU.getMagCounts(&x, &y, &z);
-			magcalMinMax(x, y, z);
-			delay(20);
-			digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-			flagDataReady = false;
-			i++;
-			Serial.println(i);
-		}
-	}
-	Serial.println("Mag min max");
-	Serial.print("\tX "); Serial.print(mmin[0]); Serial.print("\t"); Serial.println(mmax[0]);
-	Serial.print("\tY "); Serial.print(mmin[1]); Serial.print("\t"); Serial.println(mmax[1]);
-	Serial.print("\tZ "); Serial.print(mmin[2]); Serial.print("\t"); Serial.println(mmax[2]);
-
-	magCalCalc();
-	magScale[0] = mxa; magScale[1] = mya; magScale[2] = mza;
-
-	float d[3];
-	IMU.getMag(&d[0], &d[1], &d[2]);
-	Serial.println("Mag unscaled");
-	Serial.print("X "); Serial.print(d[0],3);
-	Serial.print("\tY "); Serial.print(d[1],3);
-	Serial.print("\tZ "); Serial.println(d[2],3);
-
-	IMU.setMagScale(magScale);
-	IMU.getMag(&d[0], &d[1], &d[2]);
-	Serial.println("Mag scaled");
-	Serial.print("X "); Serial.print(d[0],3);
-	Serial.print("\tY "); Serial.print(d[1],3);
-	Serial.print("\tZ "); Serial.println(d[2],3);
-
-	IMU.setMagBias(magBias);
-	IMU.getMag(&d[0], &d[1], &d[2]);
-	Serial.println("Mag biased");
-	Serial.print("X "); Serial.print(d[0],3);
-	Serial.print("\tY "); Serial.print(d[1],3);
-	Serial.print("\tZ "); Serial.println(d[2],3);
-
-	//update config
-	for (uint8_t ii = 0; ii < 3; ii++) {
-		config.magBias[ii] = magBias[ii];
-		config.magScale[ii] = magScale[ii];
-	}
-
-	Serial.println("Mag min max");
-	Serial.print("\tX "); Serial.print(mmin[0]); Serial.print("\t"); Serial.println(mmax[0]);
-	Serial.print("\tY "); Serial.print(mmin[1]); Serial.print("\t"); Serial.println(mmax[1]);
-	Serial.print("\tZ "); Serial.print(mmin[2]); Serial.print("\t"); Serial.println(mmax[2]);
-	Serial.println("\nBias");
-	Serial.print("X "); Serial.print(magBias[0]); Serial.print(" ("); Serial.print(config.magBias[0]); Serial.print(")");
-	Serial.print("\tY "); Serial.print(magBias[1]); Serial.print(" ("); Serial.print(config.magBias[1]); Serial.print(")");
-	Serial.print("\tZ "); Serial.println(magBias[2]); Serial.print(" ("); Serial.print(config.magBias[2]); Serial.print(")");
-	Serial.println("\nScale");
-	Serial.print("X "); Serial.print(magScale[0]); Serial.print(" ("); Serial.print(config.magScale[0]); Serial.print(")");
-	Serial.print("\tY "); Serial.print(magScale[1]); Serial.print(" ("); Serial.print(config.magScale[1]); Serial.print(")");
-	Serial.print("\tZ "); Serial.println(magScale[2]); Serial.print(" ("); Serial.print(config.magScale[2]); Serial.print(")");
-	Serial.println("\nCenter of points");
-	Serial.print("X "); Serial.print(mxa);
-	Serial.print("\tY "); Serial.print(mya);
-	Serial.print("\tZ "); Serial.println(mza);
-	Serial.println("\nWriting EEPROM");
-	UpdateConfig(); //save to eeprom
-	Serial.println("Done");
-	flagCalibrate = false;
-}
 
 // LED blinker
 // count flashes in duration ms
