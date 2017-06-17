@@ -79,7 +79,7 @@ long slowloop = 0;
 long veryslowloop = 0;
 // List here messages your device will transmit.
 const unsigned long TransmitMessages[] PROGMEM = { 127257L, 127251L, 130311L,0 };
-// 127258
+
 void setup()
 {
 	pinMode(LED_BUILTIN, OUTPUT);
@@ -170,7 +170,6 @@ void loop() {
 	{
 	case 'd':
 		SDEBUG = !SDEBUG;
-		if (SDEBUG) { Serial.println(F("Declination on")); }
 		delay(100);
 		break;
 	case 's':
@@ -179,22 +178,17 @@ void loop() {
 	case 'p':
 		PrintConfig();
 		PrintIMUConfig();
-		//delay(5000);
 		break;
-	case 'c':
-		//calibrate();
-		SerialDebug = false;
-		flagCalibrate = false;
-		break;
-
+	//case 'c':
+	//	SerialDebug = false;
+	//	flagCalibrate = false;
+	//	break;
 	case 'a':
 		Serial.println(F("Accel Calibration Starting - hold still"));
 		CalibrateAG();
-		//delay(3000);
 		break;
 	case 't':
 		selfTest();
-		//delay(5000);
 		break;
 	case 'n':
 		if (!flagCalibrate)
@@ -209,8 +203,9 @@ void loop() {
 		break;
 	case 'm':
 		if (!flagCalibrate)
-		{
+		{		
 			Serial.println(F("Mag Calibration collecting magnatometer values for 60 seconds"));
+			delay(500);
 			CalibrateMag();
 		}
 		else
@@ -218,14 +213,7 @@ void loop() {
 			Serial.println(F("Calibration already running!"));
 		}
 		break;
-	case 'f':
-		IMU.setMagScale(factoryMagScale);
-		printMag();
 	case 'l':
-		printMag();
-		break;
-	case 'z':
-		IMU.setMagScale(config.magScale);
 		printMag();
 		break;
 	case 'r':
@@ -244,14 +232,9 @@ void loop() {
 		flagDataReady = false;
 	}
 	
-	// Serial print and/or display at 0.5 s rate independent of data rates
+	// display at 0.25s rate independent of data rates
 	delt_t = millis() - count;
 	if (delt_t > 250) { // update once per half-second independent of read rate
-
-		//yaw += DECLINATION; // Declination 
-		//yaw = yaw + 180;
-		//if (yaw < 0) yaw += 360.0f; // Ensure yaw stays between 0 and 360
-
 		roll = ahrs.getRoll();
 		pitch = ahrs.getPitch();
 		yaw = ahrs.getYaw();
@@ -278,7 +261,7 @@ void loop() {
 		slowloop++;
 		SID++; if (SID > 254) { SID = 1; }
 	}
-	//2.5 s
+	//1 s
 	if (slowloop > 4) { slowloop = 0; SlowLoop(); }
 	NMEA2000.ParseMessages();
 }
@@ -506,27 +489,24 @@ void magcalMinMaxf(float mx, float my, float mz)
 
 
 // tbd mag cal circle detection
-int magCalCircles = 3;
+//int magCalCircles = 3;
+//void magCalLoop()
+//{
+//	// collect data points
+//	float x, y, z;
+//	IMU.getMag(&x, &y, &z);
+//	magcalMinMax(x, y, z); //accumulate min max 
+//    //detect circles
+//	//if(completed) magCalCalc
+//}
 
 void StartMagCal() 
 {
 	flagCalibrate = true;
-	magCalCircles = 0;
+	//magCalCircles = 0;
 	float d[3];	IMU.setMagBias(d); //remove existing cal
 	magScale[0] = 1; magScale[1] = 1; magScale[2] = 1;
 	IMU.setMagScale(magScale);
-}
-
-void magCalLoop()
-{
-	// collect data points
-	float x, y, z;
-	IMU.getMag(&x, &y, &z);
-	magcalMinMax(x, y, z); //accumulate min max 
-
-	//detect circles
-	//if(completed) magCalCalc
-	//IMU.setMagBias(magBias);
 }
 
 void magCalCalcf()
@@ -736,13 +716,6 @@ void Blink(int count, unsigned long duration)
 	}
 }
 
-float rad2deg(float rad)
-{
-	float deg = 0;
-	deg = rad * (180 / M_PI);
-	return deg;
-}
-
 //Load From EEPROM 
 void ReadConfig()
 {
@@ -753,7 +726,6 @@ void ReadConfig()
 void UpdateConfig()
 {
 	Blink(5, 2000);
-	//delay(5000);
 	Serial.print("Updating config");
 	config.Magic = MAGIC;
 	EEPROM.put(EEPROM_ADR_CONFIG, config);

@@ -33,3 +33,22 @@ Yaw:	344.96
 Pitch:	-2.89
 Roll:	-14.13
 RateOfTurn	0.12 deg/s
+
+
+## Configuration
+Connect USB Serial
+
+### Serial Send
+"a" = Calibrate accel and gyro (keep level and still)
+
+"m" = Calibrate magnatometer and save to eeprom
+	turn magnatometer through all positions for ~60 seconds
+
+"d" = dump 5000 magnatometer x,y,z points to check calibration (plot xy,xz,zy on scatter graph)
+
+"p" = print stored and current calibration
+
+"s" = send heading continuously for ArduinoCompass test
+
+"t" = Selftest
+
