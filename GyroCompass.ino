@@ -1,7 +1,6 @@
+#include "NMEA2000_CAN.h"
 #include <MadgwickAHRS.h>
 #include <i2c_t3.h>
-#include <NMEA2000_CAN.h>
-#include "N2kMessages.h"
 #include "MPU9250.h"
 #include <SparkFunBME280.h>
 #include <EEPROM.h>
@@ -40,6 +39,17 @@ const tConfig defConfig PROGMEM = {
 	5.0f,0.f,		// KpMag ,KiMag
 	0.25f			// accelCutoff
 };
+
+//const tNMEA2000::tProductInformation GyroCompassProductInformation PROGMEM = {
+//	1300,                        // N2kVersion
+//	101,                         // Manufacturer's product code
+//	"GyroCompass",    // Manufacturer's Model ID
+//	"1.1.0.17 (2017-06-21)",     // Manufacturer's Software version code
+//	"1.1.0.0 (2017-06-21)",      // Manufacturer's Model version
+//	"00000002",                  // Manufacturer's Model serial code
+//	0,                           // CertificationLevel
+//	4                            // LoadEquivalency
+//};
 tN2kMsg N2kMsg;
 MPU9250 IMU(0x68, 0);
 float a12, a22, a31, a32, a33;            // rotation matrix coefficients for Euler angles and gravity components

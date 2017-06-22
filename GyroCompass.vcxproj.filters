@@ -17,6 +17,7 @@
   <ItemGroup>
     <None Include="GyroCompass.ino" />
     <None Include="README.md" />
+    <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.GyroCompass.vsarduino.h">
@@ -25,12 +26,60 @@
     <ClInclude Include="..\MPU9250\MPU9250.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\NMEA2000\NMEA2000_CAN.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\NMEA2000.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kMsg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kCANMsg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kDef.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kGroupFunction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kMessages.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\N2kStream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NMEA2000\NMEA2000_CompilerDefns.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\FlexCAN_Library\FlexCAN.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\FlexCAN_Library\kinetis_flexcan.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\MPU9250\MPU9250.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NMEA2000\NMEA2000.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NMEA2000\N2kGroupFunction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NMEA2000\N2kMessages.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NMEA2000\N2kMsg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\FlexCAN_Library\FlexCAN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
