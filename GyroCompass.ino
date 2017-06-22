@@ -1,4 +1,5 @@
 #include "NMEA2000_CAN.h"
+#include "N2kMessages.h"
 #include <MadgwickAHRS.h>
 #include <i2c_t3.h>
 #include "MPU9250.h"
@@ -40,16 +41,22 @@ const tConfig defConfig PROGMEM = {
 	0.25f			// accelCutoff
 };
 
-//const tNMEA2000::tProductInformation GyroCompassProductInformation PROGMEM = {
-//	1300,                        // N2kVersion
-//	101,                         // Manufacturer's product code
-//	"GyroCompass",    // Manufacturer's Model ID
-//	"1.1.0.17 (2017-06-21)",     // Manufacturer's Software version code
-//	"1.1.0.0 (2017-06-21)",      // Manufacturer's Model version
-//	"00000002",                  // Manufacturer's Model serial code
-//	0,                           // CertificationLevel
-//	4                            // LoadEquivalency
-//};
+const tNMEA2000::tProductInformation GyroCompassProductInformation PROGMEM = {
+	1300,                        // N2kVersion
+	101,                         // Manufacturer's product code
+	"GyroCompass",    // Manufacturer's Model ID
+	"1.1.0.17 (2017-06-21)",     // Manufacturer's Software version code
+	"1.1.0.0 (2017-06-21)",      // Manufacturer's Model version
+	"00000002",                  // Manufacturer's Model serial code
+	0,                           // CertificationLevel
+	4                            // LoadEquivalency
+};
+
+const char GyroCompassManufacturerInformation[] PROGMEM = "MrBubble";
+const char GyroCompassInstallationDescription1[] PROGMEM = "Install at center of roll pitch";
+const char GyroCompassInstallationDescription2[] PROGMEM = "";
+
+
 tN2kMsg N2kMsg;
 MPU9250 IMU(0x68, 0);
 float a12, a22, a31, a32, a33;            // rotation matrix coefficients for Euler angles and gravity components
@@ -155,7 +162,9 @@ void setup()
 		"1.0.0.1 (2015-08-14)",  // Manufacturer's Software version code
 		"1.0.0.0 (2015-08-14)" // Manufacturer's Model version
 	);
-	//// Det device information
+	// Set device information
+	NMEA2000.SetProductInformation(&GyroCompassProductInformation);
+	NMEA2000.SetProgmemConfigurationInformation(GyroCompassManufacturerInformation, GyroCompassInstallationDescription1, GyroCompassInstallationDescription2);
 	NMEA2000.SetDeviceInformation(290517, // Unique number. Use e.g. Serial number.
 		140, // Device function=Temperature See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
 		60, // Device class=Sensor Communication Interface. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
