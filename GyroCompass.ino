@@ -1,7 +1,7 @@
+#include "NMEA2000_CAN.h"
+#include "N2kMessages.h"
 #include <MadgwickAHRS.h>
 #include <i2c_t3.h>
-#include <NMEA2000_CAN.h>
-#include "N2kMessages.h"
 #include "MPU9250.h"
 #include <SparkFunBME280.h>
 #include <EEPROM.h>
@@ -40,6 +40,23 @@ const tConfig defConfig PROGMEM = {
 	5.0f,0.f,		// KpMag ,KiMag
 	0.25f			// accelCutoff
 };
+
+const tNMEA2000::tProductInformation GyroCompassProductInformation PROGMEM = {
+	1300,                        // N2kVersion
+	101,                         // Manufacturer's product code
+	"GyroCompass",    // Manufacturer's Model ID
+	"1.1.0.17 (2017-06-21)",     // Manufacturer's Software version code
+	"1.1.0.0 (2017-06-21)",      // Manufacturer's Model version
+	"00000002",                  // Manufacturer's Model serial code
+	0,                           // CertificationLevel
+	4                            // LoadEquivalency
+};
+
+const char GyroCompassManufacturerInformation[] PROGMEM = "MrBubble";
+const char GyroCompassInstallationDescription1[] PROGMEM = "Install at center of roll pitch";
+const char GyroCompassInstallationDescription2[] PROGMEM = "";
+
+
 tN2kMsg N2kMsg;
 MPU9250 IMU(0x68, 0);
 float a12, a22, a31, a32, a33;            // rotation matrix coefficients for Euler angles and gravity components
@@ -106,12 +123,10 @@ void setup()
 	else Serial.println("IMU init success!");
 	IMU.setFilt(DLPF_BANDWIDTH_5HZ, srd);
 	IMU.getMagScale(factoryMagScale);
-	PrintIMUConfig();
 	ReadConfig();
 	if (config.Magic != MAGIC) {
 		//InitializeEEPROM();
-		Serial.println(F("No stored calibration\r\n  Press 'a' to run accel/gyro cal"));
-		Serial.println(F("   Press 'm' to run mag cal"));
+		Serial.println(F("\nNo stored calibration\r\n  Press 'a' to run accel/gyro cal\n  Press 'c' to run mag cal"));
 		delay(1000);
 	}
 	else
@@ -134,7 +149,7 @@ void setup()
 	bmp.settings.pressOverSample = 1;
 	//bmp.settings.disableHumidity = true;
 	if (!bmp.begin()) {
-		Serial.println("BMP init failed!");
+		Serial.println(F("BMP init failed!"));
 		while (1);
 	}
 	else Serial.println(F("BMP init success!"));
@@ -147,7 +162,9 @@ void setup()
 		"1.0.0.1 (2015-08-14)",  // Manufacturer's Software version code
 		"1.0.0.0 (2015-08-14)" // Manufacturer's Model version
 	);
-	//// Det device information
+	// Set device information
+	NMEA2000.SetProductInformation(&GyroCompassProductInformation);
+	NMEA2000.SetProgmemConfigurationInformation(GyroCompassManufacturerInformation, GyroCompassInstallationDescription1, GyroCompassInstallationDescription2);
 	NMEA2000.SetDeviceInformation(290517, // Unique number. Use e.g. Serial number.
 		140, // Device function=Temperature See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
 		60, // Device class=Sensor Communication Interface. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
@@ -159,7 +176,7 @@ void setup()
 	NMEA2000.SetN2kCANMsgBufSize(5);
 	NMEA2000.Open();
 	delay(100);
-	Serial.println(F("Starting\n a=Accl/Gyro cal.\n c=Start Mag cal.\n d=toggle output mag x,y,x\n h=toggle output heading.\n p=print config.\n t=Self Test.\n"));
+	Serial.println(F("Starting\n a=Accl/Gyro cal.\n c=Start Mag cal.\n d=toggle output mag x,y,x\n h=toggle output heading.\n p=print config.\n t=Self Test.\n\n"));
 }
 bool SDEBUG = false; // debug print for spreadsheet
 bool SPRINT = false; // send test output
@@ -171,7 +188,14 @@ void loop() {
 	switch (command)
 	{
 	case 'c': // start mag calibration		
-		StartMagCal();
+		if (!flagCalibrate)
+		{
+			StartMagCal();
+		}
+		else
+		{
+			Serial.println(F("Calibration already running!"));
+		}		
 		break;
 	case 'f': // finish mag calibration
 		FinishMagCal();
@@ -193,29 +217,6 @@ void loop() {
 		break;
 	case 't':
 		selfTest();
-		break;
-	case 'n':
-		if (!flagCalibrate)
-		{
-			Serial.println(F("Mag Calibration collecting magnatometer values for 60 seconds"));
-			CalibrateMagf();
-		}
-		else
-		{
-			Serial.println(F("Calibration already running!"));
-		}
-		break;
-	case 'm':
-		if (!flagCalibrate)
-		{		
-			Serial.println(F("Mag Calibration collecting magnatometer values for 60 seconds"));
-			delay(500);
-			CalibrateMag();
-		}
-		else
-		{
-			Serial.println(F("Calibration already running!"));
-		}
 		break;
 	case 'l':
 		printMag();
@@ -465,7 +466,6 @@ void printData() {
 	Serial.print("Roll:\t"); Serial.println(roll, 2);
 	Serial.print("Yaw:\t");	Serial.println(yaw, 2);
 	Serial.print("Heading\t"); Serial.print(heading); Serial.println(" deg");
-	Serial.print("Heading\t"); Serial.print(YawtoHeading(heading)); Serial.println(" deg");
 	Serial.print("RateOfTurn\t"); Serial.print(gz*RAD_TO_DEG, 2); Serial.println(" deg/s");
 
 	if (SerialDebug) {
@@ -499,7 +499,7 @@ void StartMagCal()
 {
 	flagCalibrate = true;
 	IMU.startMagCal();
-	Serial.println("Begin calibration, press 'f' to finish");
+	Serial.println(F("Begin calibration, press 'f' to finish"));
 }
 
 void magCalLoop()
@@ -594,8 +594,6 @@ void dumpData() {
 }
 
 void printHeading() {
-	//Serial.print(YawtoHeading(heading),2); 
-	//Serial.print(" ");
 	Serial.print(heading, 2);
 	Serial.println();
 }
