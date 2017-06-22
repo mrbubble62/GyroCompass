@@ -3,13 +3,15 @@
 
 ### Parts list:
 
-Teensy 3.1/3.2 board
+Teensy 3.2 board
 
 GY-91 Attitude Sensor MPU9250+BMP280 10DOF Magnatometer Acceleration Gyro Barometer Module
 
 DC-DC 9V/12V/24V to 5V
 
 MCP2562 CAN Transceiver
+
+M12H5J-12 IP67 Waterproof Connector
 
 ### Working:
 PGN 127257  Attitude 
@@ -40,5 +42,3 @@ Connect USB Serial
 "s" = send heading continuously for ArduinoCompass test
 
 "t" = Selftest
-
-
