@@ -19,9 +19,6 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="__vm\.GyroCompass.vsarduino.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\MPU9250\MPU9250.h">
       <Filter>Header Files</Filter>
     </ClInclude>

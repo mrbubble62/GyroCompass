@@ -32,14 +32,15 @@ Connect USB Serial
 ### Serial Send
 "a" = Calibrate accel and gyro and save to eeprom (keep level and still)
 
-"m" = Calibrate magnatometer and save to eeprom
-	turn magnatometer through all positions for ~60 seconds
+"c" = Start magnatometer calibration, turn through all positions
 
-"d" = dump 5000 magnatometer x,y,z points to check calibration (plot xy,xz,zy on scatter graph)
+"f" = Finish magnatometer calibration and save to eeprom
 
-"p" = print stored and current calibration
+"d" = Dump 5000 magnatometer x,y,z points to check calibration (plot xy,xz,zy on scatter graph)
 
-"s" = send heading continuously for ArduinoCompass test
+"p" = Print stored and current calibration
+
+"s" = Send heading continuously for ArduinoCompass test
 
 "t" = Selftest
 

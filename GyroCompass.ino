@@ -41,21 +41,6 @@ const tConfig defConfig PROGMEM = {
 	0.25f			// accelCutoff
 };
 
-const tNMEA2000::tProductInformation GyroCompassProductInformation PROGMEM = {
-	1300,                        // N2kVersion
-	101,                         // Manufacturer's product code
-	"GyroCompass",    // Manufacturer's Model ID
-	"1.1.0.17 (2017-06-21)",     // Manufacturer's Software version code
-	"1.1.0.0 (2017-06-21)",      // Manufacturer's Model version
-	"00000002",                  // Manufacturer's Model serial code
-	0,                           // CertificationLevel
-	4                            // LoadEquivalency
-};
-
-const char GyroCompassManufacturerInformation[] PROGMEM = "MrBubble";
-const char GyroCompassInstallationDescription1[] PROGMEM = "Install at center of roll pitch";
-const char GyroCompassInstallationDescription2[] PROGMEM = "";
-
 
 tN2kMsg N2kMsg;
 MPU9250 IMU(0x68, 0);
@@ -94,7 +79,11 @@ float mxa, mya, mza;
 long slowloop = 0;
 long veryslowloop = 0;
 // List here messages your device will transmit.
-const unsigned long TransmitMessages[] PROGMEM = { 127257L, 127251L, 130311L,0 };
+const unsigned long TransmitMessagesCompass[] PROGMEM = { 127250L,127251L, 127257L , 0 }; //Vessel Heading, Rate of Turn, Attitude
+const unsigned long TransmitMessagesEnv[] PROGMEM = { 130310L, 130311L,0 }; //Atmospheric Pressure, Temperature
+
+#define DEV_COMPASS 0 // 60-140
+#define DEV_ENV  1 //
 
 void setup()
 {
@@ -156,23 +145,48 @@ void setup()
 	delay(50);
 	while (!flagDataReady) {}
 	ahrs.begin(34);
+	NMEA2000.SetDeviceCount(2);
+	NMEA2000.SetInstallationDescription1("Mr Bubble Compass");
+	NMEA2000.SetInstallationDescription2("");
 	NMEA2000.SetProductInformation("01290517", // Manufacturer's Model serial code
 		666, // Manufacturer's product code
-		"GyroCompass",  // Manufacturer's Model ID
+		"Gyro Compass",  // Manufacturer's Model ID
 		"1.0.0.1 (2015-08-14)",  // Manufacturer's Software version code
-		"1.0.0.0 (2015-08-14)" // Manufacturer's Model version
+		"1.0.0.0 (2018-01-20)", // Manufacturer's Model version
+		1,	// load equivalency *50ma
+		0xffff, // NMEA 2000 version - use default
+		0xff, // Sertification level - use default
+		DEV_COMPASS
+	);
+	NMEA2000.SetProductInformation("01290517", // Manufacturer's Model serial code
+		667, // Manufacturer's product code
+		"Barometer",  // Manufacturer's Model ID
+		"1.0.0.0 (2015-08-14)",  // Manufacturer's Software version code
+		"1.0.0.0 (2018-01-20)", // Manufacturer's Model version
+		1,	// load equivalency *50ma
+		0xffff, // NMEA 2000 version - use default
+		0xff, // Sertification level - use default
+		DEV_ENV
 	);
 	// Set device information
-	NMEA2000.SetProductInformation(&GyroCompassProductInformation);
-	NMEA2000.SetProgmemConfigurationInformation(GyroCompassManufacturerInformation, GyroCompassInstallationDescription1, GyroCompassInstallationDescription2);
 	NMEA2000.SetDeviceInformation(290517, // Unique number. Use e.g. Serial number.
 		140, // Device function=Temperature See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
 		60, // Device class=Sensor Communication Interface. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
-		2040 // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
+		2040, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
+		4,
+		DEV_COMPASS
+	);
+	NMEA2000.SetDeviceInformation(290517, // Unique number. Use e.g. Serial number.
+		130, // Device function=Temperature See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
+		85, // Device class=Sensor Communication Interface. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20%26%20function%20codes%20v%202.00.pdf
+		2040, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
+		4,
+		DEV_ENV
 	);
 	NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly, 22);
 	NMEA2000.EnableForward(false);
-	NMEA2000.ExtendTransmitMessages(TransmitMessages);
+	NMEA2000.ExtendTransmitMessages(TransmitMessagesCompass, DEV_COMPASS);
+	NMEA2000.ExtendTransmitMessages(TransmitMessagesEnv, DEV_ENV);
 	NMEA2000.SetN2kCANMsgBufSize(5);
 	NMEA2000.Open();
 	delay(100);
@@ -270,9 +284,9 @@ void loop() {
 			}
 			if (SPRINT) { printHeading(); }
 			SetN2kAttitude(N2kMsg, SID, yaw*DEG_TO_RAD, pitch*DEG_TO_RAD, roll*DEG_TO_RAD);
-			NMEA2000.SendMsg(N2kMsg);
-			SetN2kRateOfTurn(N2kMsg, SID, gz);  // radians
-			NMEA2000.SendMsg(N2kMsg);
+			NMEA2000.SendMsg(N2kMsg, DEV_COMPASS);
+			SetN2kRateOfTurn(N2kMsg, SID, gz/36);  // radians
+			NMEA2000.SendMsg(N2kMsg, DEV_COMPASS);
 			SID++; if (SID > 254) { SID = 1; }
 		}
 		slowloop++;
@@ -305,12 +319,12 @@ void SlowLoop()
 	}
 	// send magnetic heading
 	SetN2kMagneticHeading(N2kMsg, SID, heading*DEG_TO_RAD, N2kDoubleNA, N2kDoubleNA);
-	NMEA2000.SendMsg(N2kMsg);
+	NMEA2000.SendMsg(N2kMsg, DEV_COMPASS);
 	// Send Temperature & Pressure
 	T = bmp.readTempC();
 	P = bmp.readFloatPressure();
 	SetN2kEnvironmentalParameters(N2kMsg, SID, N2kts_MainCabinTemperature, CToKelvin(T), N2khs_Undef, 0, P);
-	NMEA2000.SendMsg(N2kMsg);
+	NMEA2000.SendMsg(N2kMsg, DEV_ENV);
 }
 
 void myinthandler()
